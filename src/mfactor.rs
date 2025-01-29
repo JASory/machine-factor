@@ -1,4 +1,4 @@
-use crate::primes::PRIMES_128;
+use crate::primes::PRIMES_130;
 
 /// Deterministic Random Bit Generator (xorshift)
 pub const fn drbg(mut x: u64) -> u64{
@@ -152,24 +152,25 @@ pub const extern "C" fn get_factor(n: u64) -> u64{
 ///
 /// Representation of the factors in the form p^k p2^k
 #[repr(C)]
-pub struct FactorArray{
-   pub factors: [u64;30],
+pub struct Factorization{
+   pub factors: [u64;15],
+   pub powers: [u8;15],
    pub len: usize,
 }
 
-impl FactorArray{
+impl Factorization{
    const fn new() -> Self{
-      FactorArray{factors: [0u64;30], len: 0}
+      Factorization{factors: [0u64;15],powers: [0u8;15], len: 0}
    }
 }
 
-// FIXME  Return 1 if 1 and 0 if 0
-// Fix the indexing/ length calculation
+
+
 /// Complete factorization of N
 #[no_mangle]
-pub const extern "C" fn factorize(mut n: u64) -> FactorArray{
+pub const extern "C" fn factorize(mut n: u64) -> Factorization{
 
-      let mut t = FactorArray::new();
+      let mut t = Factorization::new();
       
       let mut idx = 0usize;
       
@@ -178,7 +179,7 @@ pub const extern "C" fn factorize(mut n: u64) -> FactorArray{
       }
       if n == 1{
          t.factors[0]=1;
-         t.factors[1]=1;
+         t.powers[1]=1;
          t.len = 1;
          return t;
       }
@@ -187,61 +188,60 @@ pub const extern "C" fn factorize(mut n: u64) -> FactorArray{
       
       if twofactor != 0{
         t.factors[0]=2u64;
-        t.factors[1]=twofactor as u64;
-        idx+=2;
+        t.powers[0]=twofactor as u8;
+        n>>=twofactor;
+        idx+=1;
       }
 
       let mut i = 0usize;
-      while i < 128 {
-         let fctr = PRIMES_128[i] as u64;
+      while i < 130 {
+         let fctr = PRIMES_130[i] as u64;
             // strips out small primes
             if n % fctr == 0 {
-                           // idx+=1;
                 t.factors[idx]=fctr;
-                idx+=1;
-                let mut count = 0u64;
+                let mut count = 0u8;
                 while n % fctr == 0 {
                     count += 1;
                     n /= fctr;
                 }
-                t.factors[idx]=count;
+                t.powers[idx]=count;
                 idx+=1;
             }
             i+=1;
         }
         
         if n == 1 {
+            t.len=idx;
             return  t;
         }
 
         if machine_prime::is_prime_wc(n){
             t.factors[idx]=n;
-            t.factors[idx+1]=1;
-            idx+=2;
-            t.len=idx/2;
+            t.powers[idx]=1;
+            idx+=1;
+            t.len=idx;
             return  t;
         }
         while n != 1 {
             let k = get_factor(n);
             t.factors[idx]=k;
-            idx+=1;
-            let mut count = 0u64;
+            //idx+=1;
+            let mut count = 0u8;
             while n % k == 0 {
                 count += 1;
                 n /= k;
             }
-            t.factors[idx]=count;
+            t.powers[idx]=count;
             idx+=1;
             if n == 1{
-              t.len=idx/2;
+              t.len=idx;
                return t;
             }
             if machine_prime::is_prime_wc(n){
                t.factors[idx]=n;
+               t.powers[idx]=1;
                idx+=1;
-               t.factors[idx]=1;
-               idx+=1;
-               t.len=idx/2;
+               t.len=idx;
                return t;
             }
           

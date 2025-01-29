@@ -1,6 +1,6 @@
 [package]
 name = "machine-factor"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 author = ["JASory j_a_sory@protonmail.org"]
 description = "constant factorisation for machine-size integers"
@@ -17,7 +17,7 @@ harness=false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies.machine-prime]
-version ="1.5.4"
+version ="1.5.5"
 features=["wide","internal"]
 default-features=false
 

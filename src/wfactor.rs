@@ -1,5 +1,5 @@
 use crate::mfactor::drbg;
-use crate::primes::PRIMES_128;
+use crate::primes::PRIMES_130;
 
 /// GCD(A,B) for 128-bit integers
 #[no_mangle]
@@ -124,11 +124,12 @@ pub const extern "C" fn get_factor_128(n: u128) -> u128{
            Some(factor) => return factor,
            None => {
              // Loop that has a roughly 0.5 probability of factoring each iteration
+             // The probability of being unable to factor a composite is 1/2^period and the period is likely very large
+             // So the risk of error is vanishingly small
             let mut param = drbg(n as u64);
               loop{
-               // println!("x={}",rand_base);
+                 
                  let  rand_base= (param as u128)%(n-3)+3;
-                 //println!("x={} {}",rand_base,n);
                 match pollard_brent_128(rand_base,inv,one,n){
                    Some(factor) => return factor,
                    None => param=drbg(param),
@@ -142,23 +143,24 @@ pub const extern "C" fn get_factor_128(n: u128) -> u128{
 
 /// Factorization of a 128-bit integer
 #[repr(C)]
-pub struct FactorArray128{
-   pub factors: [u128;52],
+pub struct Factorization128{
+   pub factors: [u128;26],
+   pub powers: [u8;26],
    pub len: usize,
 }
 
-impl FactorArray128{
+impl Factorization128{
    const fn new() -> Self{
-      FactorArray128{factors: [0u128;52], len: 0}
+      Factorization128{factors: [0u128;26],powers: [0u8;26], len: 0}
    }
 }
 
 
 /// Complete factorization of 128-bit N
 #[no_mangle]
-pub extern "C" fn factorize_128(mut n: u128) -> FactorArray128{
+pub const extern "C" fn factorize_128(mut n: u128) -> Factorization128{
 
-      let mut t = FactorArray128::new();
+      let mut t = Factorization128::new();
       
       let mut idx = 0usize;
       
@@ -167,7 +169,7 @@ pub extern "C" fn factorize_128(mut n: u128) -> FactorArray128{
       }
       if n == 1{
          t.factors[0]=1;
-         t.factors[1]=1;
+         t.powers[1]=1;
          t.len = 1;
          return t;
       }
@@ -175,65 +177,62 @@ pub extern "C" fn factorize_128(mut n: u128) -> FactorArray128{
       let twofactor = n.trailing_zeros();
       if twofactor != 0{
         t.factors[0]=2u128;
-        t.factors[1]=twofactor as u128;
+        t.powers[0]=twofactor as u8;
         n>>=twofactor;
-        idx+=2;
+        idx+=1;
       }
 
       let mut i = 0usize;
-      while i < 128 {
-         let fctr = PRIMES_128[i] as u128;
+      while i < 130 {
+         let fctr = PRIMES_130[i] as u128;
             // strips out small primes
             if n % fctr == 0 {
                 t.factors[idx]=fctr;
-                idx+=1;
-                let mut count = 0u128;
+                let mut count = 0u8;
                 while n % fctr == 0 {
                     count += 1;
                     n /= fctr;
                 }
                 
-                t.factors[idx]=count;
+                t.powers[idx]=count;
                 idx+=1;
             }
             i+=1;
         }
         
         if n == 1 {
+            t.len=idx;
             return  t;
         }
 
         if machine_prime::is_prime_wc_128(n){
             t.factors[idx]=n;
-            t.factors[idx+1]=1;
-            idx+=2;
-            t.len=idx/2;
+            t.powers[idx]=1;
+            idx+=1;
+            t.len=idx;
             return  t;
         }
         while n != 1 {
             let k = get_factor_128(n);
             t.factors[idx]=k;
-            idx+=1;
-            let mut count = 0u128;
+            let mut count = 0u8;
             while n % k == 0 {
                 count += 1;
                 n /= k;
             }
-            t.factors[idx]=count;
+            t.powers[idx]=count;
             idx+=1;
             if n == 1{
-               t.len=idx/2;
+               t.len=idx;
                return t;
             }
             if machine_prime::is_prime_wc_128(n){
                t.factors[idx]=n;
+               t.powers[idx]=1;
                idx+=1;
-               t.factors[idx]=1;
-               idx+=1;
-               t.len=idx/2;
+               t.len=idx;
                return t;
             }
-          
         }
         t
     }
